@@ -1,0 +1,141 @@
+# Practical Machine Learning Course Project
+By Riccardo Roganti, Date: "17th May 2017"
+
+## Executive summary
+The aim of the project is to predict how well an exercise (in our project specifically is barbell lifts) is done according to a set of variables that have been derived using sensors applied on the body.
+
+The datasets can be downloaded from:
+
+* [Training set](https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv)
+* [Test set](https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv)
+
+The objective is to correctly predict the variable `classe` of the `Test set`.
+This variable indicates how well the exercise is performed. The valua `A` indicates that the exercise was well performed while the other letters (from `B` to `E`) respectively indicate that common mistakes has been done during the execution of the weightlifting.
+
+First the datasets are loaded and only useful variables are considered.
+Then three different Machine learning algorithm are applied to a subset of the training set and then tested to estimate the accuracy.
+Finally, the best model found (i.e. Random forest) is applied to the test set to predict the type of performance in doing the weightlifting of 20 instances.
+
+## Preparation
+
+### Loading required packages
+First, the packages needed are loaded. 
+
+```{r, message = F, warning = F}
+library(caret)
+library(ggplot2)
+library(randomForest)
+library(rpart)
+```
+
+### Load of data
+First data are downloaded.
+
+```{r}
+setwd("~/Data Science/Coursera/Practical Machine Learning/Final Assignment")
+if(!file.exists("pml-training.csv")){
+        fileUrl <- "https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv"
+        download.file(fileUrl,destfile="./pml-training.csv")
+}
+if(!file.exists("pml-testing.csv")){
+        fileUrl <- "https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv"
+        download.file(fileUrl,destfile="./pml-testing.csv")
+}
+```
+
+We load the datasets.
+
+```{r}
+training <- read.csv("pml-training.csv")
+test <- read.csv("pml-testing.csv")
+```
+
+### Data cleaning
+All the variables which contain all NA values are discarded.
+
+```{r}
+count_NA <- sapply(test, function(y) sum((is.na(y))))
+NA_values <- count_NA[count_NA == 20]
+var_remove <- names(NA_values)
+training <- training[,!(names(training) %in% var_remove)]
+test <- test[,!(names(test) %in% var_remove)]
+```
+
+Other useless variable like `user_name` are discarded.
+
+```{r}
+var_remove2 <- c('user_name','raw_timestamp_part_1', 'raw_timestamp_part_2', 'cvtd_timestamp', 'new_window', 'num_window', 'X')
+training <- training[,!(names(training) %in% var_remove2)]
+test <- test[,!(names(test) %in% var_remove2)]
+```
+
+We are left with 53 variables, including the `classe` variables which must be predicted.
+
+```{r}
+names(training)
+```
+
+## Application of Machine Learning Algorithm
+
+First the `training` dateset is splitted in two datasets:
+
+* `sub_train`: will be the dataset used to train the models
+* `sub_test` : will be the dataset used to validate the models
+
+```{r}
+partition <- createDataPartition(training$classe, p = 0.6, list = FALSE)
+sub_train <- training[partition,]
+sub_test <- training[-partition,]
+set.seed(18)
+```
+
+
+Three algorithm are applied:
+
+* Random Forest
+* Generalized boosted regression
+* Decision tree
+
+It is used a cross-validation with n=5 to improve the results.
+
+Models are first trained. Then they are used with the validation dataset. Finally a confusion matrix is produced which can be checked to assess the accuracy of the models applied on the validation dataset.
+
+```{r, message = F, warning = FALSE, echo = FALSE}
+mod_rf <- randomForest(classe ~ ., data = sub_train)
+pred_rf <- predict(mod_rf, sub_test, type = "class")
+cm_rf <- confusionMatrix(pred_rf, sub_test$classe)
+mod_gbm <- train(classe ~ ., data = sub_train, trControl = trainControl(method = "cv", number = 5), method='gbm',  verbose = FALSE)
+pred_gbm <- predict(mod_gbm, sub_test)
+cm_gbm <- confusionMatrix(pred_gbm, sub_test$classe)
+mod_rpart <- train(classe ~ ., data = sub_train, method = "rpart", trControl = trainControl(method = "cv", number = 5))
+pred_rpart <- predict(mod_rpart, sub_test)
+cm_rpart <- confusionMatrix(sub_test$classe, pred_rpart)
+```
+
+The three models' parameters are:
+
+```{r}
+mod_rf
+mod_gbm
+mod_rpart
+```
+
+The confusion matrix report:
+
+```{r}
+cm_rf
+cm_gbm
+cm_rpart
+```
+
+## Model selection
+It is possible to see that Random Forest produces the model with the highest accuracy, more than 99%.
+It is interesting to see that the decision tree has the worst performance, less than 50%.
+
+## Prediction
+Finally, the model chosen is applied to the test set to predict the type of exercise.
+
+```{r}
+new_pred <- predict(mod_rf, test, type = "class")
+new_pred
+```
