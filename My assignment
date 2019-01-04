@@ -7,26 +7,26 @@
 
 #The training data for this project are available here:
 
-* [Training set](https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv)
-* [Test set](https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv)
+# [Training set](https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv)
+# [Test set](https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv)
 
 #The objective is to correctly predict the variable `classe` of the `Test set`.
 #This variable indicates how well the exercise is performed. 
 #The value `A` indicates that the exercise was well performed while the other letters (from `B` to `E`) respectively indicate that common mistakes has been done during the execution of the weightlifting.
 
 ##The steps to realize the project are:
-#1. load the required packages
-#2. load the data
-#3. clean the data
-#4. build the models
+#1. loading the required packages
+#2. loading the data
+#3. cleaning the data
+#4. building the models
 #4.1. classification trees
 #4.2. random forest
 #4.3. general boosted regression
-#5. Validate the best model
+#5. Validating the best model
 
 ## Preparation
 
-### Load required packages
+### Loading required packages
 
 library(caret)
 library(ggplot2)
@@ -34,65 +34,59 @@ library(randomForest)
 library(rpart)
 library(rpart.plot)
 library(RColorBrewer)
+install.packages("rattle")
+install.packages("gmb")
 library(rattle)
-library(corrplot)
+#library(corrplot)
 library(gbm)
 
 
 ### Loading the data
 
-```{r}
-setwd("~/Data Science/Coursera/Practical Machine Learning/Final Assignment")
-if(!file.exists("pml-training.csv")){
-        fileUrl <- "https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv"
-        download.file(fileUrl,destfile="./pml-training.csv")
-}
-if(!file.exists("pml-testing.csv")){
-        fileUrl <- "https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv"
-        download.file(fileUrl,destfile="./pml-testing.csv")
-}
-```
 
-```{r}
+ml_path<-"~/R/Data Science Coursera/"
+if(!file.exists(paste(ml_path,"pml-training.csv"))){
+  fileUrl <- "https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv"
+  download.file(fileUrl,destfile="./pml-training.csv")
+}
+if(!file.exists(paste(ml_path,"pml-testing.csv"))){
+  fileUrl <- "https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv"
+  download.file(fileUrl,destfile="./pml-testing.csv")
+}
+
+
+
 training_in <- read.csv("pml-training.csv")
 test_in <- read.csv("pml-testing.csv")
-```
+
 
 ### Data cleaning
 #All the variables which contain all NA values are discarded.
 
-```{r}
+
 trainData<- training_in[, colSums(is.na(training_in)) == 0]
 validData <- test_in[, colSums(is.na(test_in)) == 0]
-```
 
-#Remove the first seven variables as they have little impact on the outcome classe.
+#Removing the first seven variables as they have little impact on the outcome classe.
 
-```{r}
 trainData <- trainData[, -c(1:7)]
 validData <- validData[, -c(1:7)]
-```
 
-```{r}
-names(training)
-```
 ##Modeling
 
-## Prepare the datasets for prediction
+## Preparing the datasets for prediction
 
 #First the `training` dateset is splitted in two datasets:
+  
+# `trainData`: will be the dataset used to train and test the models
+# `validData` : will be the dataset used to validate the models
 
-* `trainData`: will be the dataset used to train and test the models
-* `validData` : will be the dataset used to validate the models
-
-```{r}
 set.seed(1234) 
 inTrain <- createDataPartition(trainData$classe, p = 0.7, list = FALSE)
 trainData <- trainData[inTrain, ]
 testData <- trainData[-inTrain, ]
-```
 
-#Clean even further by removing the variables that are near-zero-variance
+#Cleaning even further by removing the variables that are near-zero-variance
 NZV <- nearZeroVar(trainData)
 trainData <- trainData[, -NZV]
 testData  <- testData[, -NZV]
@@ -102,266 +96,65 @@ testData  <- testData[, -NZV]
 
 ##Classification trees
 
-#Obtain the model
+#Obtaining the model
 set.seed(12345)
 decisionTreeMod <- rpart(classe ~ ., data=trainData, method="class")
 
-#Use the fancyRpartPlot() function to plot the classification tree as a dendogram.
+#Using the fancyRpartPlot() function to plot the classification tree as a dendogram.
 fancyRpartPlot(decisionTreeMod)
 
-#Test the model “decisionTreeMod” on the testData to find out how well it performs by looking at the accuracy variable.
+#Testing the model “decisionTreeMod” on the testData to find out how well it performs by looking at the accuracy variable.
 predictTreeMod <- predict(decisionTreeMod, testData, type = "class")
 cmtree <- confusionMatrix(predictTreeMod, testData$classe)
-      
-##Confusion Matrix and Statistics##
-
-          Reference
-Prediction   A   B   C   D   E
-         A 990 121  15  23   7
-         B  32 402  31  56  55
-         C  22  94 540 129  78
-         D 120 142  74 437 115
-         E  12  40  51  34 504
-
-Overall Statistics
-                                          
-               Accuracy : 0.6967          
-                 95% CI : (0.6824, 0.7107)
-    No Information Rate : 0.2852          
-    P-Value [Acc > NIR] : < 2.2e-16       
-                                          
-                  Kappa : 0.6174          
- Mcnemar's Test P-Value : < 2.2e-16       
-
-Statistics by Class:
-
-                     Class: A Class: B Class: C Class: D Class: E
-Sensitivity            0.8418  0.50313   0.7595   0.6436   0.6640
-Specificity            0.9437  0.94767   0.9054   0.8691   0.9593
-Pos Pred Value         0.8564  0.69792   0.6257   0.4921   0.7863
-Neg Pred Value         0.9373  0.88811   0.9476   0.9252   0.9268
-Prevalence             0.2852  0.19374   0.1724   0.1646   0.1840
-Detection Rate         0.2401  0.09748   0.1309   0.1060   0.1222
-Detection Prevalence   0.2803  0.13967   0.2093   0.2153   0.1554
-Balanced Accuracy      0.8928  0.72540   0.8324   0.7563   0.8117
-
 plot(cmtree$table, col = cmtree$byClass, 
      main = paste("Classification Tree Confusion Matrix: Accuracy =", round(cmtree$overall['Accuracy'], 3)))
 
 ##Random forest
 
-#Obtain the model
+#Obtaining the model
 set.seed(12345)
 controlRF <- trainControl(method="cv", number=3, verboseIter=FALSE)
 modRF <- train(classe ~ ., data=trainData, method="rf", trControl=controlRF)
 modRF$finalModel
-
-#randomForest(x = x, y = y, mtry = param$mtry) 
-               Type of random forest: classification
-                     Number of trees: 500
-No. of variables tried at each split: 2
-
-        OOB estimate of  error rate: 0.63%
-Confusion matrix:
-     A    B    C    D    E  class.error
-A 3904    2    0    0    0 0.0005120328
-B   15 2639    4    0    0 0.0071482318
-C    0   15 2380    1    0 0.0066777963
-D    0    0   43 2208    1 0.0195381883
-E    0    0    1    5 2519 0.0023762376
-
 plot(modRF)
 
-#Test the model obtained “modRF” on the test data to find out how well it performs by looking at the accuracy variable.
+#Testing the model obtained “modRF” on the test data to find out how well it performs by looking at the accuracy variable.
 predictRF <- predict(modRF, newdata=testData)
 cmrf <- confusionMatrix(predictRF, testData$classe)
-
-#Confusion Matrix and Statistics
-
-          Reference
-Prediction    A    B    C    D    E
-         A 1176    0    0    0    0
-         B    0  799    0    0    0
-         C    0    0  711    0    0
-         D    0    0    0  679    0
-         E    0    0    0    0  759
-
-#Overall Statistics
-                                     
-               Accuracy : 1          
-                 95% CI : (0.9991, 1)
-    No Information Rate : 0.2852     
-    P-Value [Acc > NIR] : < 2.2e-16  
-                                     
-                  Kappa : 1          
- Mcnemar's Test P-Value : NA         
-
-#Statistics by Class:
-
-                     Class: A Class: B Class: C Class: D Class: E
-Sensitivity            1.0000   1.0000   1.0000   1.0000    1.000
-Specificity            1.0000   1.0000   1.0000   1.0000    1.000
-Pos Pred Value         1.0000   1.0000   1.0000   1.0000    1.000
-Neg Pred Value         1.0000   1.0000   1.0000   1.0000    1.000
-Prevalence             0.2852   0.1937   0.1724   0.1646    0.184
-Detection Rate         0.2852   0.1937   0.1724   0.1646    0.184
-Detection Prevalence   0.2852   0.1937   0.1724   0.1646    0.184
-Balanced Accuracy      1.0000   1.0000   1.0000   1.0000    1.000
-
 plot(cmrf$table, col = cmrf$byClass, main = paste("Random Forest Confusion Matrix: Accuracy =", round(cmrf$overall['Accuracy'], 3)))
 
 #Measuring variable importance
 rffit <- randomForest(classe ~ ., data=testData, ntree=500, keep.forest=FALSE, importance=TRUE)
 rffit$importance # relative importance of predictors (highest <-> most important)
 varImpPlot(rffit) # plot results
-#Variable Importance
-                               A           B           C           D           E MeanDecreaseAccuracy MeanDecreaseGini
-roll_belt            0.063678765 0.077196922 0.092227698 0.104855123 0.180262983          0.099354236        245.43659
-pitch_belt           0.060994673 0.090639314 0.062446238 0.070670419 0.025188017          0.061938065        124.06341
-yaw_belt             0.087513712 0.068977520 0.080951510 0.110100547 0.049471596          0.079533737        163.93024
-total_accel_belt     0.013861272 0.015750519 0.018942121 0.017144493 0.020439074          0.016826312         44.34621
-gyros_belt_x         0.011904218 0.005749791 0.016351442 0.008894734 0.002701752          0.009274533         23.34165
-gyros_belt_y         0.006892695 0.011123423 0.017309589 0.011788723 0.005101519          0.009987833         22.50084
-gyros_belt_z         0.016621521 0.024479949 0.030602994 0.028714844 0.023942703          0.023877882         57.15952
-accel_belt_x         0.018886700 0.015059791 0.018933937 0.015737274 0.005499405          0.015179579         30.09240
-accel_belt_y         0.012883913 0.013458228 0.021765457 0.029333994 0.011416763          0.016948928         33.32589
-accel_belt_z         0.027212866 0.028602665 0.047171590 0.036399418 0.038143812          0.034410110         89.28640
-magnet_belt_x        0.018718428 0.027062178 0.032050907 0.029632954 0.014215777          0.023595320         54.89783
-magnet_belt_y        0.031725672 0.039991339 0.043604072 0.052634581 0.043109603          0.040905597         85.74224
-magnet_belt_z        0.036973982 0.043007425 0.048597615 0.059360160 0.036823688          0.043784990         91.18379
-roll_arm             0.019837939 0.024763657 0.033476348 0.045116705 0.016551399          0.026698386         58.54206
-pitch_arm            0.012173630 0.013107672 0.014745757 0.014725339 0.008480711          0.012526762         35.91138
-yaw_arm              0.014342753 0.011814603 0.015385981 0.022096113 0.006792817          0.013922818         42.19141
-total_accel_arm      0.006369961 0.005381019 0.007209608 0.010451030 0.004099156          0.006575454         24.25535
-gyros_arm_x          0.018036239 0.008745706 0.004657396 0.007918076 0.002900430          0.009479020         30.69957
-gyros_arm_y          0.010817266 0.010161517 0.005025881 0.009492680 0.003545475          0.008148756         32.46709
-gyros_arm_z          0.005445853 0.003758249 0.003596561 0.005913951 0.002076567          0.004255806         18.63252
-accel_arm_x          0.032375899 0.019821836 0.022139164 0.038108257 0.013945078          0.025732557         54.51322
-accel_arm_y          0.014582842 0.011703108 0.011494734 0.013924003 0.008025303          0.012180238         33.33649
-accel_arm_z          0.014143960 0.007123780 0.010421428 0.009347827 0.004488734          0.009591199         29.81999
-magnet_arm_x         0.049526792 0.025682069 0.030904336 0.049734676 0.021948545          0.036656290         57.16874
-magnet_arm_y         0.021665941 0.019950566 0.026261415 0.035639963 0.015448352          0.023269462         47.10393
-magnet_arm_z         0.020677266 0.016900541 0.014367830 0.012853966 0.006965991          0.015039741         44.37633
-roll_dumbbell        0.028263207 0.048095325 0.073097939 0.051612894 0.030980581          0.044181254         79.81033
-pitch_dumbbell       0.016115857 0.021890056 0.035377271 0.026782725 0.015618424          0.022174240         44.64954
-yaw_dumbbell         0.027591719 0.027604069 0.049956772 0.037171396 0.024528426          0.032498621         57.66133
-total_accel_dumbbell 0.029450913 0.021534824 0.024478283 0.040373504 0.020412370          0.027194548         52.94217
-gyros_dumbbell_x     0.004244647 0.010039513 0.013306436 0.010224516 0.006437863          0.008303491         31.27862
-gyros_dumbbell_y     0.025579575 0.024800758 0.033158293 0.024358222 0.014713995          0.024525376         62.04453
-gyros_dumbbell_z     0.003396109 0.005670617 0.005622417 0.005135343 0.003936427          0.004601227         23.76099
-accel_dumbbell_x     0.025537159 0.026562714 0.042396209 0.034431099 0.021917156          0.029447188         54.61021
-accel_dumbbell_y     0.035848945 0.034572071 0.075370381 0.046536818 0.029937848          0.043033148         77.88708
-accel_dumbbell_z     0.027938901 0.030608951 0.042733077 0.041619823 0.033996323          0.034335214         65.31060
-magnet_dumbbell_x    0.081517113 0.054981272 0.105407411 0.081094846 0.036708886          0.072171076         94.14990
-magnet_dumbbell_y    0.091443324 0.092966757 0.139933302 0.123118465 0.051593898          0.098003991        141.77957
-magnet_dumbbell_z    0.107797466 0.072768792 0.113206575 0.097025298 0.050399726          0.089631800        151.13183
-roll_forearm         0.122646109 0.065630215 0.158665716 0.104917780 0.056773712          0.102822916        129.70874
-pitch_forearm        0.096540273 0.042003028 0.061205225 0.103789927 0.039560579          0.070562240        155.96792
-yaw_forearm          0.013968787 0.010354313 0.018021774 0.030261044 0.008687594          0.015683105         37.32729
-total_accel_forearm  0.017223107 0.005398495 0.009593653 0.008934270 0.003380562          0.009712338         29.38042
-gyros_forearm_x      0.004100850 0.004603116 0.006626945 0.009683241 0.002766657          0.005302555         22.40527
-gyros_forearm_y      0.007414062 0.009340356 0.004621406 0.007810977 0.004433431          0.006800121         29.19061
-gyros_forearm_z      0.005125418 0.007073284 0.005069527 0.003896935 0.001727923          0.004662633         22.84853
-accel_forearm_x      0.044413137 0.036867627 0.039494363 0.080450761 0.032742583          0.045906784         72.06115
-accel_forearm_y      0.015761168 0.009338201 0.017987196 0.014051464 0.007161089          0.013046852         34.90775
-accel_forearm_z      0.019407130 0.019527063 0.031648601 0.032612236 0.016853870          0.023208429         51.53096
-magnet_forearm_x     0.031814180 0.014388551 0.022810956 0.035171065 0.018424427          0.024974928         50.95449
-magnet_forearm_y     0.018284580 0.014504334 0.024194705 0.027599931 0.013620862          0.019240669         49.27441
-magnet_forearm_z     0.026387152 0.019281439 0.025206961 0.029950252 0.013240742          0.023017536         62.25252
 
 ##Generalized Boosted Regression 
 
-#Obtain the model
+#Obtaining the model
 set.seed(12345)
 controlGBM <- trainControl(method = "repeatedcv", number = 5, repeats = 1)
 modGBM  <- train(classe ~ ., data=trainData, method = "gbm", trControl = controlGBM, verbose = FALSE)
 modGBM$finalModel
-
-#A gradient boosted model with multinomial loss function.
-#150 iterations were performed.
-#There were 52 predictors of which 42 had non-zero influence.
-
 print(modGBM)
 
-#Stochastic Gradient Boosting 
-
-13737 samples
-   52 predictor
-    5 classes: 'A', 'B', 'C', 'D', 'E' 
-
-#No pre-processing
-Resampling: Cross-Validated (5 fold, repeated 1 times) 
-Summary of sample sizes: 10990, 10991, 10989, 10990, 10988 
-Resampling results across tuning parameters:
-
-  interaction.depth  n.trees  Accuracy   Kappa    
-  1                   50      0.7510370  0.6845815
-  1                  100      0.8171350  0.7686429
-  1                  150      0.8533135  0.8144335
-  2                   50      0.8520032  0.8125199
-  2                  100      0.9071828  0.8825490
-  2                  150      0.9315701  0.9134029
-  3                   50      0.8950994  0.8671743
-  3                  100      0.9416893  0.9262125
-  3                  150      0.9619996  0.9519225
-
-Tuning parameter 'shrinkage' was held constant at a value of 0.1
-Tuning parameter 'n.minobsinnode' was held constant at a value of 10
-Accuracy was used to select the optimal model using the largest value.
-The final values used for the model were n.trees = 150, interaction.depth = 3, shrinkage = 0.1 and n.minobsinnode = 10.
-
-#Test the model obtained “modGBM” on the test data to find out how well it performs by looking at the accuracy variable.
+#Testing the model obtained “modGBM” on the test data to find out how well it performs by looking at the accuracy variable.
 predictGBM <- predict(modGBM, newdata=testData)
 cmGBM <- confusionMatrix(predictGBM, testData$classe)
-Confusion Matrix and Statistics
-
-          Reference
-Prediction    A    B    C    D    E
-         A 1167   23    0    0    1
-         B    6  765   14    0    8
-         C    2   11  688   19    3
-         D    1    0    8  657    9
-         E    0    0    1    3  738
-
-Overall Statistics
-                                          
-               Accuracy : 0.9736          
-                 95% CI : (0.9682, 0.9782)
-    No Information Rate : 0.2852          
-    P-Value [Acc > NIR] : < 2.2e-16       
-                                          
-                  Kappa : 0.9665          
- Mcnemar's Test P-Value : NA              
-
-Statistics by Class:
-
-                     Class: A Class: B Class: C Class: D Class: E
-Sensitivity            0.9923   0.9574   0.9677   0.9676   0.9723
-Specificity            0.9919   0.9916   0.9897   0.9948   0.9988
-Pos Pred Value         0.9798   0.9647   0.9516   0.9733   0.9946
-Neg Pred Value         0.9969   0.9898   0.9932   0.9936   0.9938
-Prevalence             0.2852   0.1937   0.1724   0.1646   0.1840
-Detection Rate         0.2830   0.1855   0.1668   0.1593   0.1790
-Detection Prevalence   0.2888   0.1923   0.1753   0.1637   0.1799
-Balanced Accuracy      0.9921   0.9745   0.9787   0.9812   0.9856
-
 plot(cmGBM$table, col = cmGBM$byClass, main = paste("GBM Confusion Matrix: Accuracy =", round(cmGBM$overall['Accuracy'], 3)))
+
 
 #The three models' parameters are:
 
-```{r}
 #decisionTreeMod
 #modRF
 #modGBM
-```
+
 
 #The confusion matrix report:
 
-```{r}
 #cmtree
 #cmrf
 #cmGBM
-```
 
 ## Model selection
 #It is possible to see that Random Forest produces the model with the highest accuracy, more than 99%.
@@ -371,5 +164,3 @@ plot(cmGBM$table, col = cmGBM$byClass, main = paste("GBM Confusion Matrix: Accur
 
 final_prediction <- predict(modRF, newdata=validData)
 final_prediction
-# [1] B A B A A E D B A A B C B A E E A B B B
-#Levels: A B C D E
