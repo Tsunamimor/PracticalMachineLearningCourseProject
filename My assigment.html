@@ -1,0 +1,145 @@
+<!DOCTYPE html><html><head><meta charset="utf-8"><title>Training set.md</title><style></style></head><body id="preview">
+<h1><a id="My_Practical_Machine_Learning_Course_Project_0"></a>My Practical Machine Learning Course Project</h1>
+<p>By Diana López<br>
+Date: “03rd Jan 2019”</p>
+<h2><a id="Description_4"></a>Description</h2>
+<p>One thing that people regularly do is quantify how much of a particular activity they do, but they rarely quantify how well they do it.<br>
+In this project, your goal will be to use data from accelerometers on the belt, forearm, arm, and dumbell of 6 participants.</p>
+<p>The training data for this project are available here:</p>
+<p><a href="https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv">Training set</a><br>
+<a href="https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv">Test set</a></p>
+<p>The objective is to correctly predict the variable <code>classe</code> of the <code>Test set</code>.<br>
+This variable indicates how well the exercise is performed.<br>
+The value <code>A</code> indicates that the exercise was well performed while the other letters (from <code>B</code> to <code>E</code>) respectively indicate that common mistakes has been done during the execution of the weightlifting.</p>
+<p>The steps to realize the project are:</p>
+<ol>
+<li>loading the required packages</li>
+<li>loading the data</li>
+<li>cleaning the data</li>
+<li>building the models<br>
+4.1. classification trees<br>
+4.2. random forest<br>
+4.3. general boosted regression</li>
+<li>Validating the best model</li>
+</ol>
+<h2><a id="Preparation_27"></a>Preparation</h2>
+<h3><a id="Loading_required_packages_29"></a>Loading required packages</h3>
+<pre><code class="language-{r">library(caret)
+library(ggplot2)
+library(randomForest)
+library(rpart)
+library(rpart.plot)
+library(RColorBrewer)
+install.packages(&quot;rattle&quot;)
+install.packages(&quot;gmb&quot;)
+library(rattle)
+library(corrplot)
+library(gbm)
+</code></pre>
+<h3><a id="Loading_the_data_44"></a>Loading the data</h3>
+<pre><code class="language-{r">ml_path&lt;-&quot;~/R/Data Science Coursera/&quot;
+if(!file.exists(paste(ml_path,&quot;pml-training.csv&quot;))){
+  fileUrl &lt;- &quot;https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv&quot;
+  download.file(fileUrl,destfile=&quot;./pml-training.csv&quot;)
+}
+if(!file.exists(paste(ml_path,&quot;pml-testing.csv&quot;))){
+  fileUrl &lt;- &quot;https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv&quot;
+  download.file(fileUrl,destfile=&quot;./pml-testing.csv&quot;)
+}
+</code></pre>
+<pre><code class="language-{r">training_in &lt;- read.csv(&quot;pml-training.csv&quot;)
+test_in &lt;- read.csv(&quot;pml-testing.csv&quot;)
+</code></pre>
+<h3><a id="Data_cleaning_63"></a>Data cleaning</h3>
+<p>All the variables which contain all NA values are discarded.</p>
+<pre><code class="language-{r">trainData&lt;- training_in[, colSums(is.na(training_in)) == 0]
+validData &lt;- test_in[, colSums(is.na(test_in)) == 0]
+</code></pre>
+<p>Removing the first seven variables as they have little impact on the outcome classe.</p>
+<pre><code class="language-{r">trainData &lt;- trainData[, -c(1:7)]
+validData &lt;- validData[, -c(1:7)]
+</code></pre>
+<h2><a id="Modeling_78"></a>Modeling</h2>
+<h4><a id="Preparing_the_datasets_for_prediction_79"></a>Preparing the datasets for prediction</h4>
+<p>First the <code>training</code> dateset is splitted in two datasets:</p>
+<pre><code class="language-{r">`trainData`: will be the dataset used to train and test the models
+`validData` : will be the dataset used to validate the models
+
+set.seed(1234) 
+inTrain &lt;- createDataPartition(trainData$classe, p = 0.7, list = FALSE)
+trainData &lt;- trainData[inTrain, ]
+testData &lt;- trainData[-inTrain, ]
+</code></pre>
+<p>Cleaning even further by removing the variables that are near-zero-variance</p>
+<pre><code class="language-{r">NZV &lt;- nearZeroVar(trainData)
+trainData &lt;- trainData[, -NZV]
+testData  &lt;- testData[, -NZV]
+</code></pre>
+<p>Models are first trained. Then they are used with the test dataset.<br>
+Finally a confusion matrix is produced which can be checked to assess the accuracy of the models applied on the validation dataset.</p>
+<h1><a id="Classification_trees_101"></a>Classification trees</h1>
+<h2><a id="Obtaining_the_model_103"></a>Obtaining the model</h2>
+<pre><code class="language-{r">set.seed(12345)
+decisionTreeMod &lt;- rpart(classe ~ ., data=trainData, method=&quot;class&quot;)
+</code></pre>
+<p>Using the fancyRpartPlot() function to plot the classification tree as a dendogram.</p>
+<pre><code class="language-{r">fancyRpartPlot(decisionTreeMod)
+</code></pre>
+<p>Testing the model “decisionTreeMod” on the testData to find out how well it performs by looking at the accuracy variable.</p>
+<pre><code class="language-{r">predictTreeMod &lt;- predict(decisionTreeMod, testData, type = &quot;class&quot;)
+cmtree &lt;- confusionMatrix(predictTreeMod, testData$classe)
+plot(cmtree$table, col = cmtree$byClass, 
+     main = paste(&quot;Classification Tree Confusion Matrix: Accuracy =&quot;, round(cmtree$overall['Accuracy'], 3)))
+</code></pre>
+<h1><a id="Random_forest_120"></a>Random forest</h1>
+<h2><a id="Obtaining_the_model_122"></a>Obtaining the model</h2>
+<pre><code class="language-{r">set.seed(12345)
+controlRF &lt;- trainControl(method=&quot;cv&quot;, number=3, verboseIter=FALSE)
+modRF &lt;- train(classe ~ ., data=trainData, method=&quot;rf&quot;, trControl=controlRF)
+modRF$finalModel
+plot(modRF)
+</code></pre>
+<p>Testing the model obtained “modRF” on the test data to find out how well it performs by looking at the accuracy variable.</p>
+<pre><code class="language-{r">predictRF &lt;- predict(modRF, newdata=testData)
+cmrf &lt;- confusionMatrix(predictRF, testData$classe)
+plot(cmrf$table, col = cmrf$byClass, main = paste(&quot;Random Forest Confusion Matrix: Accuracy =&quot;, round(cmrf$overall['Accuracy'], 3)))
+</code></pre>
+<h2><a id="Measuring_variable_importance_137"></a>Measuring variable importance</h2>
+<pre><code class="language-{r">rffit &lt;- randomForest(classe ~ ., data=testData, ntree=500, keep.forest=FALSE, importance=TRUE)
+rffit$importance # relative importance of predictors (highest &lt;-&gt; most important)
+varImpPlot(rffit) # plot results
+</code></pre>
+<h1><a id="Generalized_Boosted_Regression_143"></a>Generalized Boosted Regression</h1>
+<h2><a id="Obtaining_the_model_145"></a>Obtaining the model</h2>
+<pre><code class="language-{r">set.seed(12345)
+controlGBM &lt;- trainControl(method = &quot;repeatedcv&quot;, number = 5, repeats = 1)
+modGBM  &lt;- train(classe ~ ., data=trainData, method = &quot;gbm&quot;, trControl = controlGBM, verbose = FALSE)
+modGBM$finalModel
+print(modGBM)
+</code></pre>
+<p>Testing the model obtained “modGBM” on the test data to find out how well it performs by looking at the accuracy variable.</p>
+<pre><code class="language-{r">predictGBM &lt;- predict(modGBM, newdata=testData)
+cmGBM &lt;- confusionMatrix(predictGBM, testData$classe)
+plot(cmGBM$table, col = cmGBM$byClass, main = paste(&quot;GBM Confusion Matrix: Accuracy =&quot;, round(cmGBM$overall['Accuracy'], 3)))
+</code></pre>
+<p>The three models’ parameters are:</p>
+<ol>
+<li>decisionTreeMod</li>
+<li>modRF</li>
+<li>modGBM</li>
+</ol>
+<p>The confusion matrix report:</p>
+<ol>
+<li>cmtree</li>
+<li>cmrf</li>
+<li>cmGBM</li>
+</ol>
+<h1><a id="Model_selection_171"></a>Model selection</h1>
+<p>It is possible to see that Random Forest produces the model with the highest accuracy, more than 99%.</p>
+<h2><a id="Apply_the_best_model_to_the_validation_data_174"></a>Apply the best model to the validation data</h2>
+<p>By comparing the accuracy rate values of the three models,  the ‘Random Forest’ model is the winner.</p>
+<pre><code class="language-{r">final_prediction &lt;- predict(modRF, newdata=validData)
+final_prediction
+</code></pre>
+
+</body></html>
